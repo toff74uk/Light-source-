@@ -1,0 +1,8 @@
+Light Media for iPhone uses:
+
+MobileVLCKit 3.6.0 (VideoLAN) — the playback engine.
+Licensed under the GNU Lesser General Public License, version 2.1 or later.
+It is linked as a separate dynamic framework and is not modified.
+Source and licence: https://code.videolan.org/videolan/VLCKit
+
+The Light Media name, logo drawing code and demo clip come from the Android project.

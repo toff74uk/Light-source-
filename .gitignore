@@ -1,0 +1,8 @@
+.DS_Store
+build/
+Pods/
+*.xcodeproj
+*.xcworkspace
+LightMedia/App/Info.plist
+ExportOptions.plist
+*.p8
