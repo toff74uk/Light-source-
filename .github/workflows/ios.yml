@@ -34,6 +34,10 @@ jobs:
           if [ -z "$XCODE" ]; then echo "::error::This build machine has no Xcode 26, which Apple now requires for uploads."; exit 1; fi
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
+      - name: Test media library parsing and download validation
+        run: |
+          swiftc LightMedia/Core/UPnP.swift LightMedia/Core/DownloadValidation.swift Tests/MediaLibrary/main.swift -o "$RUNNER_TEMP/media-library-tests"
+          "$RUNNER_TEMP/media-library-tests"
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate the Xcode project
