@@ -79,6 +79,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
             address = offline.absoluteString
         } else if !next.downloadID.isEmpty {
             stop()
+            item = next
             failure = "This download is missing. Open Downloads and download it again."
             notify()
             return false
@@ -96,6 +97,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         }
         stop()
         guard let url = URL(string: address) else {
+            item = next
             failure = "Playback failed. Restart playback to recreate the player."
             notify()
             return false
