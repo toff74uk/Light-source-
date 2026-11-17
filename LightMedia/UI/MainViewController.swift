@@ -302,6 +302,9 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
         case "Series": browse(.SERIES)
         case "Favourites": saved(false)
         case "Continue": saved(true)
+        case "Downloads": downloads()
+        case "My Music": mediaLibrary(.music)
+        case "My Videos": mediaLibrary(.videos)
         default: settings()
         }
     }
@@ -646,10 +649,12 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
             opts.append(store.watched(item) ? "Mark unwatched" : "Mark watched")
             opts.append("Remove from Continue")
         }
+        if item.kind == .MOVIE || item.kind == .EPISODE || item.kind == .AUDIO { opts.append("Download to iPhone") }
         opts.append("Favourite groups")
         Ui.choose(self, title: item.name, items: opts) { [weak self] n in
             guard let self = self else { return }
             switch opts[n] {
+            case "Download to iPhone": self.download(item)
             case "Remove favourite", "Add favourite":
                 self.store.toggle(item)
                 self.refreshSaved()
@@ -710,6 +715,9 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
             fav?.title = self.store.favourite(item) ? "♥ Saved" : "♡ Favourite"
         }
         buttons.append((fav, 143))
+        if item.kind == .MOVIE || item.kind == .EPISODE || item.kind == .AUDIO {
+            buttons.append((LMButton("↓ Download") { [weak self] in self?.download(item) }, 112))
+        }
         let results = Pane()
         buttons.forEach { body.addSubview($0.0) }
         body.addSubview(results)
@@ -729,6 +737,11 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
         view.setNeedsLayout()
         view.layoutIfNeeded()
         body.layoutIfNeeded()
+
+        if !item.sourceURL.isEmpty || !item.downloadID.isEmpty {
+            programmePlot.text = item.plot.isEmpty ? "Your media · play or download on this iPhone." : item.plot
+            return
+        }
 
         if item.kind == .SERIES {
             loading("Loading episodes…")
@@ -868,7 +881,8 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
             context.channels = LiveChannels.visible(source, store, context.category ?? "", context.query, item)
             returnLiveId = item.id
         }
-        let player = PlayerViewController(item: item, provider: provider, restart: restart, live: context)
+        let source = item.sourceURL.isEmpty && item.downloadID.isEmpty ? provider : nil
+        let player = PlayerViewController(item: item, provider: source, restart: restart, live: context)
         player.onFinish = { [weak self] returned in self?.returned(from: returned) }
         present(player, animated: true)
     }
@@ -895,6 +909,29 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
 
     // MARK: settings
 
+    private func download(_ item: MediaItem) {
+        do {
+            try DownloadManager.shared.enqueue(item, provider: provider)
+            Ui.toast("Added to Downloads · open Downloads to view progress")
+        } catch { Ui.message(self, title: "Download", message: error.localizedDescription) }
+    }
+
+    private func downloads() {
+        begin("Downloads", "Your offline films, episodes and music")
+        let list = DownloadsView(host: self) { [weak self] item in self?.play(item, restart: false) }
+        body.addSubview(list)
+        body.onLayout = { pane in list.frame = pane.bounds }
+    }
+
+    private func mediaLibrary(_ type: LibraryMediaType) {
+        begin(type == .music ? "My Music" : "My Videos", "Your UPnP media library")
+        let list = UPnPBrowserView(host: self, type: type, onSettings: { [weak self] in
+            self?.open(MediaServersViewController())
+        }, onPlay: { [weak self] item in self?.play(item, restart: false) })
+        body.addSubview(list)
+        body.onLayout = { pane in list.frame = pane.bounds }
+    }
+
     private func menuHeader(_ title: String, _ description: String) {
         begin(title, description)
         programmePlot.text = "Choose a tile to open it."
@@ -914,6 +951,7 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
         }
         tiles.add("Screensaver", glyph: "moon") { [weak self] in self?.open(ScreensaverSettingsViewController()) }
         tiles.add("Account", glyph: "profile") { [weak self] in self?.accountSettings() }
+        tiles.add("Add server (UPnP)", glyph: "folder") { [weak self] in self?.open(MediaServersViewController()) }
         tiles.add("Watch history", glyph: "trash") { [weak self] in
             guard let self = self else { return }
             Ui.confirm(self, title: "Clear watch history?", message: "Remove saved playback positions for this account?", ok: "Clear") { [weak self] in
