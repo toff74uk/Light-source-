@@ -7,6 +7,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         Ui.load()
+        DownloadManager.shared.start()
         let window = TouchWindow(frame: UIScreen.main.bounds)
         window.backgroundColor = UIColor(argb: 0xff040b16)
         window.overrideUserInterfaceStyle = .dark
@@ -36,6 +37,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationDidEnterBackground(_ application: UIApplication) {
         Prefs.flushAll()
         IdleMonitor.shared.suspend()
+    }
+
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        guard identifier == DownloadManager.identifier else { completionHandler(); return }
+        DownloadManager.shared.backgroundCompletion = completionHandler
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
