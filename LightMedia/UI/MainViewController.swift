@@ -723,11 +723,14 @@ final class MainViewController: BaseViewController, UITableViewDataSource, UITab
         body.addSubview(results)
         detailResults = results
         body.onLayout = { pane in
-            let fixed = buttons.reduce(CGFloat(0)) { $0 + $1.1 } + CGFloat(buttons.count - 1) * Ui.gap
+            let gaps = CGFloat(buttons.count - 1) * Ui.gap
+            let widths = buttons.reduce(CGFloat(0)) { $0 + $1.1 }
+            let scale = min(1, max(0, pane.bounds.width - gaps) / max(1, widths))
+            let fixed = widths * scale + gaps
             let flexible = max(60, pane.bounds.width - fixed)
             var x: CGFloat = 0
             for (button, width) in buttons {
-                let w = width == 0 ? flexible : width
+                let w = width == 0 ? flexible : width * scale
                 button.frame = CGRect(x: x, y: 0, width: w, height: Ui.row)
                 x += w + Ui.gap
             }
