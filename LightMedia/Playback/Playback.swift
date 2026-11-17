@@ -1,6 +1,7 @@
 import UIKit
 import AVFoundation
 import MobileVLCKit
+import MediaPlayer
 
 /// One app-owned video player. Its picture lives in `surface`, which is moved between
 /// the preview window and the full-screen player so playback carries on without reloading.
@@ -34,6 +35,22 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         let centre = NotificationCenter.default
         centre.addObserver(self, selector: #selector(background), name: UIApplication.didEnterBackgroundNotification, object: nil)
         centre.addObserver(self, selector: #selector(foreground), name: UIApplication.willEnterForegroundNotification, object: nil)
+        let commands = MPRemoteCommandCenter.shared()
+        commands.playCommand.addTarget { [weak self] _ in
+            DispatchQueue.main.async { if self?.item?.kind == .AUDIO { self?.play() } }
+            return .success
+        }
+        commands.pauseCommand.addTarget { [weak self] _ in
+            DispatchQueue.main.async { if self?.item?.kind == .AUDIO { self?.pause() } }
+            return .success
+        }
+        commands.togglePlayPauseCommand.addTarget { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self = self, self.item?.kind == .AUDIO else { return }
+                if self.wantsPlay { self.pause() } else { self.play() }
+            }
+            return .success
+        }
     }
 
     var active: Bool { return player != nil }
@@ -58,7 +75,16 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         previewStopped = false
         let store = LocalStore.shared
         let address: String
-        if let provider = provider {
+        if let offline = DownloadManager.shared.localURL(next) {
+            address = offline.absoluteString
+        } else if !next.downloadID.isEmpty {
+            stop()
+            failure = "This download is missing. Open Downloads and download it again."
+            notify()
+            return false
+        } else if !next.sourceURL.isEmpty {
+            address = next.sourceURL
+        } else if let provider = provider {
             address = provider.streamUrl(next, liveFormat: store.liveFormat)
         } else {
             address = Bundle.main.url(forResource: "demo", withExtension: "mp4")?.absoluteString ?? ""
@@ -98,7 +124,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
             notify()
             return false
         }
-        if provider != nil {
+        if !url.isFileURL {
             media.addOption(":http-user-agent=RGTV/2.3")
             media.addOption(":network-caching=1500")
             media.addOption(":http-reconnect")
@@ -107,7 +133,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
             let seconds = store.position(next) / 1000
             if seconds > 0 { media.addOption(":start-time=\(seconds)") }
         }
-        if provider == nil && next.kind == .LIVE { media.addOption(":input-repeat=65535") }
+        if provider == nil && next.kind == .LIVE && next.sourceURL.isEmpty { media.addOption(":input-repeat=65535") }
         let contrast = Prefs.named("subtitles").int("contrast", 0)
         if contrast != 0 {
             media.addOption(":freetype-background-opacity=255")
@@ -147,6 +173,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         lastProgress = Date()
         player.play()
         UIApplication.shared.isIdleTimerDisabled = true
+        updateNowPlaying()
         notify()
     }
 
@@ -155,6 +182,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         wantsPlay = false
         if player.isPlaying || player.canPause { player.pause() }
         UIApplication.shared.isIdleTimerDisabled = false
+        updateNowPlaying()
         notify()
     }
 
@@ -194,6 +222,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         canvas = nil
         player = nil
         item = nil
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         source = ""
         failure = nil
         ended = false
@@ -223,7 +252,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
             preferenceApplied = true
             PlaybackOptions.applyPreference(player)
         }
-        if ticks % 5 == 0 { save() }
+        if ticks % 5 == 0 { save(); updateNowPlaying() }
         // Report a visible stalled player once; never retry in a loop.
         if wantsPlay && !ended && failure == nil {
             let quiet = Date().timeIntervalSince(lastProgress)
@@ -261,6 +290,7 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
         guard let player = player else { return }
         save()
         Prefs.flushAll()
+        if item?.kind == .AUDIO { updateNowPlaying(); return }
         if wantsPlay && player.isPlaying {
             backgroundPaused = true
             player.pause()
@@ -273,6 +303,17 @@ final class PlaybackSession: NSObject, VLCMediaPlayerDelegate {
             lastProgress = Date()
             player.play()
         }
+    }
+
+    private func updateNowPlaying() {
+        guard let item = item, item.kind == .AUDIO else { return }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+            MPMediaItemPropertyTitle: item.name,
+            MPMediaItemPropertyArtist: item.plot,
+            MPMediaItemPropertyPlaybackDuration: Double(durationMs) / 1000,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: Double(positionMs) / 1000,
+            MPNowPlayingInfoPropertyPlaybackRate: wantsPlay && !ended ? 1.0 : 0.0
+        ]
     }
 }
 

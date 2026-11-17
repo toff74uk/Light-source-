@@ -92,7 +92,9 @@ final class PlayerViewController: BaseViewController {
 
     override var idleAllowed: Bool { return false }
     private var isLive: Bool { return item.kind == .LIVE }
-    private var titleText: String { return item.name + (provider == nil ? "  ·  DEMO" : "") }
+    private var titleText: String {
+        return item.name + (!item.downloadID.isEmpty ? "  ·  OFFLINE" : provider == nil && item.sourceURL.isEmpty ? "  ·  DEMO" : "")
+    }
 
     // MARK: setup
 
@@ -107,6 +109,17 @@ final class PlayerViewController: BaseViewController {
 
         host.backgroundColor = .black
         view.addSubview(host)
+        if item.kind == .AUDIO {
+            let note = UIImageView(image: UIImage(systemName: "music.note"))
+            note.tintColor = Ui.cyan.withAlphaComponent(0.35)
+            note.contentMode = .scaleAspectFit
+            note.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(note)
+            NSLayoutConstraint.activate([
+                note.centerXAnchor.constraint(equalTo: view.centerXAnchor), note.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+                note.widthAnchor.constraint(equalToConstant: 100), note.heightAnchor.constraint(equalToConstant: 100)
+            ])
+        }
         touchLayer.backgroundColor = .clear
         touchLayer.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(screenTapped)))
         view.addSubview(touchLayer)
@@ -229,7 +242,7 @@ final class PlayerViewController: BaseViewController {
         titleLabel.frame = CGRect(x: titleX, y: 14, width: max(0, safe.maxX - 12 - titleX), height: 36)
 
         var right = safe.maxX - 12
-        if !nextButton.isHidden || item.kind == .EPISODE {
+        if !nextButton.isHidden || (item.kind == .EPISODE && item.downloadID.isEmpty) {
             nextButton.frame = CGRect(x: right - 180, y: 62, width: 180, height: 48)
             right -= 180 + Ui.gap
         }
@@ -299,7 +312,7 @@ final class PlayerViewController: BaseViewController {
         else if errors.isHidden { spinner.startAnimating() }
         if session.ended && !endHandled && session.same(item) {
             endHandled = true
-            if item.kind == .EPISODE {
+            if item.kind == .EPISODE && item.downloadID.isEmpty {
                 nextButton.isHidden = false
                 view.setNeedsLayout()
             }
@@ -381,7 +394,7 @@ final class PlayerViewController: BaseViewController {
         bottomBar.isHidden = false
         titleBar.isHidden = false
         settingsButton.isHidden = false
-        if item.kind == .EPISODE { nextButton.isHidden = false }
+        if item.kind == .EPISODE && item.downloadID.isEmpty { nextButton.isHidden = false }
         view.setNeedsLayout()
         refresh()
         if autoHide { resetHide() } else { cancelHide() }
@@ -518,7 +531,7 @@ final class PlayerViewController: BaseViewController {
     // MARK: next episode
 
     private func nextEpisode() {
-        if nextLoading || item.kind != .EPISODE { return }
+        if nextLoading || item.kind != .EPISODE || !item.downloadID.isEmpty { return }
         nextLoading = true
         nextButton.isEnabled = false
         nextButton.title = "Finding next…"
