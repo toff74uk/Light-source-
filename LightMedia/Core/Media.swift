@@ -1,7 +1,7 @@
 import Foundation
 
 enum Kind: String {
-    case LIVE, MOVIE, SERIES, EPISODE
+    case LIVE, MOVIE, SERIES, EPISODE, AUDIO
 }
 
 /// Provider-independent, credential-free catalogue models.
@@ -16,13 +16,17 @@ struct MediaItem: Equatable {
     let seriesId: String
     var seasonNumber: Int = -1
     var episodeNumber: Int = -1
+    // Direct UPnP resources and downloaded files bypass the provider URL builder.
+    var sourceURL: String = ""
+    var downloadID: String = ""
 
     var key: String { return kind.rawValue + ":" + id }
 
     func json() -> [String: Any] {
         return ["kind": kind.rawValue, "id": id, "name": name, "category": category, "image": image,
                 "plot": plot, "extension": ext, "seriesId": seriesId,
-                "seasonNumber": seasonNumber, "episodeNumber": episodeNumber]
+                "seasonNumber": seasonNumber, "episodeNumber": episodeNumber,
+                "sourceURL": sourceURL, "downloadID": downloadID]
     }
 
     func jsonString() -> String { return Json.text(json()) }
@@ -34,7 +38,8 @@ struct MediaItem: Equatable {
                          plot: Json.str(o, "plot"), ext: Json.str(o, "extension", "mp4"),
                          seriesId: Json.str(o, "seriesId"),
                          seasonNumber: Json.int(o, "seasonNumber", -1),
-                         episodeNumber: Json.int(o, "episodeNumber", -1))
+                         episodeNumber: Json.int(o, "episodeNumber", -1),
+                         sourceURL: Json.str(o, "sourceURL"), downloadID: Json.str(o, "downloadID"))
     }
 
     static func from(text: String) -> MediaItem? {

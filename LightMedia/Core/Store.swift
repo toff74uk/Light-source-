@@ -375,7 +375,7 @@ struct Theme {
 
 /// Stable section IDs keep saved navigation compatible with renamed headings.
 enum MainSections {
-    static let ids = ["Live TV", "Films", "Series", "Favourites", "Continue", "Settings"]
+    static let ids = ["Live TV", "Films", "Series", "Favourites", "Continue", "Downloads", "My Music", "My Videos", "Settings"]
     private static var prefs: Prefs { return Prefs.named("main_sections") }
 
     static func title(_ id: String) -> String { return id }
